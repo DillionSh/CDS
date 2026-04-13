@@ -22,6 +22,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 import streamlit as st
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.neural_network import MLPClassifier
 
 
 
@@ -75,9 +78,6 @@ X = df3.drop("MentalHealthStatus", axis=1).values
 y = df3["MentalHealthStatus"].values
 
 
-
-
-
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=42
 )
@@ -99,6 +99,39 @@ print("F1 Score:", f1_score(y_test, pred))
 
 print("ROC-AUC:", roc_auc_score(y_test, proba))
 
+
+rf = RandomForestClassifier(
+    n_estimators=100,
+    class_weight='balanced',
+    random_state=42
+)
+
+rf.fit(X_train, y_train)
+
+
+xgb = XGBClassifier(
+    n_estimators=200,
+    learning_rate=0.05,
+    max_depth=4,
+    scale_pos_weight = (len(y_train[y_train==0]) / len(y_train[y_train==1])),
+    random_state=42
+)
+
+xgb.fit(X_train, y_train)
+
+nn = MLPClassifier(
+    hidden_layer_sizes=(64, 32),
+    max_iter=500,
+    random_state=42
+)
+
+nn.fit(X_train, y_train)
+
+
+
+
+
+
 import streamlit as st
 import numpy as np
 
@@ -106,6 +139,12 @@ st.set_page_config(page_title="Mental Health Predictor", layout="centered")
 
 st.title("🧠 Mental Health Risk Predictor")
 st.markdown("### Predict whether a student is at risk based on lifestyle and mental health factors")
+
+model_choice = st.selectbox(
+    "Choose Model",
+    ["Logistic Regression", "Random Forest", "XGBoost", "Neural Network"]
+)
+
 
 sleep = st.slider("Sleep hours", 3, 10)
 academic_stress = st.slider("Academic Stress Level", 0, 10)
@@ -131,8 +170,20 @@ user_input = np.array([[
 user_input_scaled = scaler.transform(user_input)
 print(user_input_scaled)
 
+
+if model_choice == "Logistic Regression":
+    selected_model = model
+elif model_choice == "Random Forest":
+    selected_model = rf
+elif model_choice == "XGBoost":
+    selected_model = xgb
+else:
+    selected_model = nn
+
+
+
 if st.button("Predict"):
-    proba = model.predict_proba(user_input_scaled)[0][1]
+    proba = selected_model.predict_proba(user_input_scaled)[0][1]
     if proba > 0.5:
         st.success("Result: Healthy (Not At Risk)")
         st.balloons()
