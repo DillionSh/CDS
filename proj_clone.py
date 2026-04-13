@@ -74,8 +74,7 @@ print(df3)
 X = df3.drop("MentalHealthStatus", axis=1).values
 y = df3["MentalHealthStatus"].values
 
-# Normalize
-X = (X - X.mean(axis=0)) / X.std(axis=0)
+
 
 
 
@@ -134,7 +133,7 @@ print(user_input_scaled)
 
 if st.button("Predict"):
     proba = model.predict_proba(user_input_scaled)[0][1]
-    if proba > 0.06:
+    if proba > 0.5:
         st.success("Result: Healthy (Not At Risk)")
         st.balloons()
         st.write(f"{proba:.2f}")
