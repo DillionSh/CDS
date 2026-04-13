@@ -1,17 +1,6 @@
 import pandas as pd
 
-import numpy as np
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-
-import time
-
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import f1_score
 
@@ -21,115 +10,115 @@ from sklearn.metrics import accuracy_score, confusion_matrix, classification_rep
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
-import streamlit as st
+
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.neural_network import MLPClassifier
+import streamlit as st
+import numpy as np
 
 
+@st.cache_resource
+def train_models():
+    df = pd.read_csv('data.csv')
+    df2 = pd.read_csv('mental_health_dataset.csv')
 
+    # --- ALL YOUR PREPROCESSING HERE ---
+    df2["Mental_Health_Status"] = df2["Mental_Health_Status"].replace({
+        0: 1,
+        1: 0,
+        2: 0
+    })
 
+    df2 = df2.drop(columns=["Student_ID", "Daily_Reflections", "Mood_Description"])
 
-df= pd.read_csv('data.csv') # loading dataset
-df2= pd.read_csv('mental_health_dataset.csv') # loading dataset
+    df2 = df2.rename(columns={
+        "Sleep_Hours": "SleepHours",
+        "Stress_Level": "AcademicStress",
+        "Anxiety_Score": "GAD7",
+        "Depression_Score": "PHQ9",
+        "Mental_Health_Status": "MentalHealthStatus"
+    })
 
+    # scaling
+    df["AcademicStress"] = df["AcademicStress"] / 10.0
+    df2["AcademicStress"] = (df2["AcademicStress"] - 1) / 4.0
 
-df2["Mental_Health_Status"] = df2["Mental_Health_Status"].replace({
-    0: 1,
-    1: 0,
-    2: 0
-})
+    df["SleepHours"] = (df["SleepHours"] - 3) / 7.0
+    df2["SleepHours"] = (df2["SleepHours"] - 3) / 6.0
 
-df2 = df2.drop(columns=["Student_ID", "Daily_Reflections", "Mood_Description"])
+    df["GAD7"] /= 21.0
+    df2["GAD7"] /= 21.0
 
-df2 = df2.rename(columns={
-    "Sleep_Hours": "SleepHours",
-    "Stress_Level": "AcademicStress",
-    "Anxiety_Score": "GAD7",
-    "Depression_Score": "PHQ9",
-    "Mental_Health_Status": "MentalHealthStatus"
-})
+    df["PHQ9"] /= 27.0
+    df2["PHQ9"] /= 27.0
 
-df["AcademicStress"] = df["AcademicStress"] / 10.0
+    common_cols = sorted(list(set(df.columns) & set(df2.columns)))
 
-df2["AcademicStress"] = (df2["AcademicStress"] - 1) / 4.0
+    df3 = pd.concat([df[common_cols], df2[common_cols]]).reset_index(drop=True)
 
+    X = df3.drop("MentalHealthStatus", axis=1).values
+    y = df3["MentalHealthStatus"].values
 
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=42
+    )
 
-df["SleepHours"] = (df["SleepHours"] - 3) / 7.0
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
 
-df2["SleepHours"] = (df2["SleepHours"] - 3) / 6.0
-df["GAD7"] = df["GAD7"] / 21.0
-df2["GAD7"] = df2["GAD7"] / 21.0
+    # Models
+    model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test)
+    proba = model.predict_proba(X_test)[:, 1]
 
-df["PHQ9"] = df["PHQ9"] / 27.0
-df2["PHQ9"] = df2["PHQ9"] / 27.0
+    rf = RandomForestClassifier(n_estimators=100, class_weight='balanced')
+    rf.fit(X_train, y_train)
+    pred_rf = rf.predict(X_test)
+    proba_rf = rf.predict_proba(X_test)[:, 1]
 
-common_cols = sorted(list(set(df.columns) & set(df2.columns)))
+    xgb = XGBClassifier(
+        n_estimators=200,
+        learning_rate=0.05,
+        max_depth=4,
+        scale_pos_weight=(len(y_train[y_train==0]) / len(y_train[y_train==1]))
+    )
+    xgb.fit(X_train, y_train)
+    pred_xgb = xgb.predict(X_test)
+    proba_xgb = xgb.predict_proba(X_test)[:, 1]
 
-df1_aligned = df[common_cols]
-df2_aligned = df2[common_cols]
+    nn = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500)
+    nn.fit(X_train, y_train)
+    pred_nn = nn.predict(X_test)
+    proba_nn = nn.predict_proba(X_test)[:, 1]
 
-df3 = pd.concat([df1_aligned, df2_aligned], axis=0).reset_index(drop=True)
+    model_metrics = {
+        "Logistic Regression": {
+            "Accuracy": accuracy_score(y_test, pred),
+            "F1": f1_score(y_test, pred),
+            "ROC-AUC": roc_auc_score(y_test, proba)
+        },
+        "Random Forest": {
+            "Accuracy": accuracy_score(y_test, pred_rf),
+            "F1": f1_score(y_test, pred_rf),
+            "ROC-AUC": roc_auc_score(y_test, proba_rf)
+        },
+        "XGBoost": {
+            "Accuracy": accuracy_score(y_test, pred_xgb),
+            "F1": f1_score(y_test, pred_xgb),
+            "ROC-AUC": roc_auc_score(y_test, proba_xgb)
+        },
+        "Neural Network": {
+            "Accuracy": accuracy_score(y_test, pred_nn),
+            "F1": f1_score(y_test, pred_nn),
+            "ROC-AUC": roc_auc_score(y_test, proba_nn)
+        }
+    }
 
-print(df3)
-
-X = df3.drop("MentalHealthStatus", axis=1).values
-y = df3["MentalHealthStatus"].values
-
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
-
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-
-model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
-model.fit(X_train, y_train)
-
-pred = model.predict(X_test)
-proba = model.predict_proba(X_test)[:, 1]
-
-print("Accuracy:", accuracy_score(y_test, pred))
-print(confusion_matrix(y_test, pred))
-print(classification_report(y_test, pred))
-print("F1 Score:", f1_score(y_test, pred))
-
-print("ROC-AUC:", roc_auc_score(y_test, proba))
-
-
-rf = RandomForestClassifier(
-    n_estimators=100,
-    class_weight='balanced',
-    random_state=42
-)
-
-rf.fit(X_train, y_train)
-
-
-xgb = XGBClassifier(
-    n_estimators=200,
-    learning_rate=0.05,
-    max_depth=4,
-    scale_pos_weight = (len(y_train[y_train==0]) / len(y_train[y_train==1])),
-    random_state=42
-)
-
-xgb.fit(X_train, y_train)
-
-nn = MLPClassifier(
-    hidden_layer_sizes=(64, 32),
-    max_iter=500,
-    random_state=42
-)
-
-nn.fit(X_train, y_train)
-
-
-
-
+    return  model, rf, xgb, nn, scaler, model_metrics
+model, rf, xgb, nn, scaler, model_metrics = train_models()
 
 
 import streamlit as st
@@ -181,7 +170,6 @@ else:
     selected_model = nn
 
 
-
 if st.button("Predict"):
     proba = selected_model.predict_proba(user_input_scaled)[0][1]
     if proba > 0.5:
@@ -192,3 +180,12 @@ if st.button("Predict"):
         st.warning("Result: At Risk")
         st.write(f"{proba:.2f}")
 
+st.subheader(f"📊 {model_choice} Performance")
+
+metrics = model_metrics[model_choice]
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric("Accuracy", f"{metrics['Accuracy']:.2f}")
+col2.metric("F1 Score", f"{metrics['F1']:.2f}")
+col3.metric("ROC-AUC", f"{metrics['ROC-AUC']:.2f}")
