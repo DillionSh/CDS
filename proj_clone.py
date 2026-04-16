@@ -121,8 +121,6 @@ def train_models():
 model, rf, xgb, nn, scaler, model_metrics = train_models()
 
 
-import streamlit as st
-import numpy as np
 
 st.set_page_config(page_title="Mental Health Predictor", layout="centered")
 
