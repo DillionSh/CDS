@@ -23,7 +23,7 @@ def train_models():
     df = pd.read_csv('data.csv')
     df2 = pd.read_csv('mental_health_dataset.csv')
 
-    # --- ALL YOUR PREPROCESSING HERE ---
+
     df2["Mental_Health_Status"] = df2["Mental_Health_Status"].replace({
         0: 1,
         1: 0,
@@ -40,7 +40,7 @@ def train_models():
         "Mental_Health_Status": "MentalHealthStatus"
     })
 
-    # scaling
+    
     df["AcademicStress"] = df["AcademicStress"] / 10.0
     df2["AcademicStress"] = (df2["AcademicStress"] - 1) / 4.0
 
