@@ -121,11 +121,13 @@ def train_models():
 model, rf, xgb, nn, scaler, model_metrics = train_models()
 
 
+import streamlit as st
+import numpy as np
 
 st.set_page_config(page_title="Mental Health Predictor", layout="centered")
 
 st.title("🧠 Mental Health Risk Predictor")
-st.markdown("### Predict whether a student is at risk based on lifestyle and mental health factors")
+st.markdown("### Predict whether a student is at risk based on stress and mental health factors")
 
 model_choice = st.selectbox(
     "Choose Model",
@@ -187,3 +189,24 @@ col1, col2, col3 = st.columns(3)
 col1.metric("Accuracy", f"{metrics['Accuracy']:.2f}")
 col2.metric("F1 Score", f"{metrics['F1']:.2f}")
 col3.metric("ROC-AUC", f"{metrics['ROC-AUC']:.2f}")
+
+feature_names = ["AcademicStress", "GAD7", "GPA", "PHQ9", "SleepHours"]
+
+st.subheader("📌 Feature Importance")
+
+if model_choice == "Random Forest":
+    importances = rf.feature_importances_
+elif model_choice == "XGBoost":
+    importances = xgb.feature_importances_
+else:
+    importances = None
+
+if importances is not None:
+    importance_df = pd.DataFrame({
+        "Feature": feature_names,
+        "Importance": importances
+    }).sort_values(by="Importance", ascending=False)
+
+    st.bar_chart(importance_df.set_index("Feature"))
+else:
+    st.info("Feature importance only available for tree-based models.")
