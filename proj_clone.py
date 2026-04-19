@@ -3,14 +3,12 @@ import pandas as pd
 
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import f1_score
-
+from sklearn.metrics import precision_score
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, ConfusionMatrixDisplay
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-
-
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.neural_network import MLPClassifier
@@ -40,7 +38,7 @@ def train_models():
         "Mental_Health_Status": "MentalHealthStatus"
     })
 
-    
+
     df["AcademicStress"] = df["AcademicStress"] / 10.0
     df2["AcademicStress"] = (df2["AcademicStress"] - 1) / 4.0
 
@@ -97,21 +95,25 @@ def train_models():
     model_metrics = {
         "Logistic Regression": {
             "Accuracy": accuracy_score(y_test, pred),
+            "Precision": precision_score(y_test, pred),
             "F1": f1_score(y_test, pred),
             "ROC-AUC": roc_auc_score(y_test, proba)
         },
         "Random Forest": {
             "Accuracy": accuracy_score(y_test, pred_rf),
+            "Precision": precision_score(y_test, pred_rf),
             "F1": f1_score(y_test, pred_rf),
             "ROC-AUC": roc_auc_score(y_test, proba_rf)
         },
         "XGBoost": {
             "Accuracy": accuracy_score(y_test, pred_xgb),
+            "Precision": precision_score(y_test, pred_xgb),
             "F1": f1_score(y_test, pred_xgb),
             "ROC-AUC": roc_auc_score(y_test, proba_xgb)
         },
         "Neural Network": {
             "Accuracy": accuracy_score(y_test, pred_nn),
+            "Precision": precision_score(y_test, pred_nn),
             "F1": f1_score(y_test, pred_nn),
             "ROC-AUC": roc_auc_score(y_test, proba_nn)
         }
@@ -121,8 +123,7 @@ def train_models():
 model, rf, xgb, nn, scaler, model_metrics = train_models()
 
 
-import streamlit as st
-import numpy as np
+
 
 st.set_page_config(page_title="Mental Health Predictor", layout="centered")
 
@@ -184,13 +185,14 @@ st.subheader(f"📊 {model_choice} Performance")
 
 metrics = model_metrics[model_choice]
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Accuracy", f"{metrics['Accuracy']:.2f}")
-col2.metric("F1 Score", f"{metrics['F1']:.2f}")
-col3.metric("ROC-AUC", f"{metrics['ROC-AUC']:.2f}")
+col2.metric("Precision", f"{metrics['Precision']:.2f}")
+col3.metric("F1 Score", f"{metrics['F1']:.2f}")
+col4.metric("ROC-AUC", f"{metrics['ROC-AUC']:.2f}")
 
-feature_names = ["AcademicStress", "GAD7", "GPA", "PHQ9", "SleepHours"]
+feature_names = ["AcademicStress", "Anxiety Score (GAD7)", "GPA", "Depression Score (PHQ9)", "SleepHours"]
 
 st.subheader("📌 Feature Importance")
 
