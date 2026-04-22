@@ -112,8 +112,16 @@ def train_models():
     input_size = X_train.shape[1]
 
     nn_model = SimpleMLP(input_size)
+    
+    class_weights = compute_class_weight(
+        class_weight='balanced',
+        classes=np.unique(y_train),
+        y=y_train
+    )
 
-    criterion = torch.nn.CrossEntropyLoss()
+    weights = torch.tensor(class_weights, dtype=torch.float32)
+    
+    criterion = torch.nn.CrossEntropyLoss(weight=weights)
     optimizer = torch.optim.Adam(nn_model.parameters(), lr=0.001)
 
     epochs = 50
