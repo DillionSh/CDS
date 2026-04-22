@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.utils.class_weight import compute_class_weight
+
 import torch
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import f1_score
@@ -113,15 +113,9 @@ def train_models():
 
     nn_model = SimpleMLP(input_size)
     
-    class_weights = compute_class_weight(
-        class_weight='balanced',
-        classes=np.unique(y_train),
-        y=y_train
-    )
-
-    weights = torch.tensor(class_weights, dtype=torch.float32)
     
-    criterion = torch.nn.CrossEntropyLoss(weight=weights)
+    
+    criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(nn_model.parameters(), lr=0.001)
 
     epochs = 50
