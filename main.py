@@ -1,8 +1,10 @@
-
 import pandas as pd
+
+import torch
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
+
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, ConfusionMatrixDisplay
 from sklearn.preprocessing import StandardScaler
@@ -65,10 +67,10 @@ def train_models():
     X_test = scaler.transform(X_test)
 
     # Models
-    model = LogisticRegression(max_iter=1000, class_weight='balanced')
-    model.fit(X_train, y_train)
-    pred = model.predict(X_test)
-    proba = model.predict_proba(X_test)[:, 1]
+    lr_model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    lr_model.fit(X_train, y_train)
+    pred = lr_model.predict(X_test)
+    proba = lr_model.predict_proba(X_test)[:, 1]
 
     rf = RandomForestClassifier(n_estimators=100, class_weight='balanced')
     rf.fit(X_train, y_train)
@@ -85,10 +87,72 @@ def train_models():
     pred_xgb = xgb.predict(X_test)
     proba_xgb = xgb.predict_proba(X_test)[:, 1]
 
-    nn = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500)
-    nn.fit(X_train, y_train)
-    pred_nn = nn.predict(X_test)
-    proba_nn = nn.predict_proba(X_test)[:, 1]
+
+    #Create Neural Network
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+
+    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+
+    class SimpleMLP(torch.nn.Module):
+        def __init__(self, input_size):
+            super().__init__()
+            self.net = torch.nn.Sequential(
+                torch.nn.Linear(input_size, 64),
+                torch.nn.ReLU(),
+                torch.nn.Linear(64, 32),
+                torch.nn.ReLU(),
+                torch.nn.Linear(32, 2)
+            )
+
+        def forward(self, x):
+            return self.net(x)
+
+    input_size = X_train.shape[1]
+
+    nn_model = SimpleMLP(input_size)
+
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(nn_model.parameters(), lr=0.001)
+
+    epochs = 50
+    batch_size = 32
+
+    for epoch in range(epochs):
+        nn_model.train()
+
+        permutation = torch.randperm(X_train_tensor.size(0))
+
+        total_loss = 0
+
+        for i in range(0, X_train_tensor.size(0), batch_size):
+            indices = permutation[i:i + batch_size]
+            batch_x = X_train_tensor[indices]
+            batch_y = y_train_tensor[indices]
+
+            outputs = nn_model(batch_x)
+            loss = criterion(outputs, batch_y)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        print(f"Epoch {epoch + 1}, Loss: {total_loss:.4f}")
+
+    nn_model.eval()
+
+    with torch.no_grad():
+        outputs = nn_model(X_test_tensor)
+        _, pred_nn = torch.max(outputs, 1)
+        probs = torch.softmax(outputs, dim=1)
+
+        proba_nn = probs[:, 1]
+
+    pred_nn = pred_nn.numpy()
+    proba_nn = proba_nn.numpy()
 
     model_metrics = {
         "Logistic Regression": {
@@ -117,8 +181,9 @@ def train_models():
         }
     }
 
-    return  model, rf, xgb, nn, scaler, model_metrics
-model, rf, xgb, nn, scaler, model_metrics = train_models()
+    feature_order = list(df3.drop("MentalHealthStatus", axis=1).columns)
+    return lr_model, rf, xgb, nn_model, scaler, model_metrics, feature_order
+model, rf, xgb, nn, scaler, model_metrics, feature_order = train_models()
 
 
 
@@ -148,13 +213,15 @@ phq9_scaled = phq9 / 27.0
 gpa_scaled = gpa / 5.0
 
 
-user_input = np.array([[
-    stress_scaled,
-    gad7_scaled,
-    gpa_scaled,
-    phq9_scaled,
-    sleep_scaled
-]])
+input_dict = {
+    "AcademicStress": stress_scaled,
+    "GAD7": gad7_scaled,
+    "GPA": gpa_scaled,
+    "PHQ9": phq9_scaled,
+    "SleepHours": sleep_scaled
+}
+
+user_input = np.array([[input_dict[col] for col in feature_order]])
 user_input_scaled = scaler.transform(user_input)
 print(user_input_scaled)
 
@@ -170,14 +237,23 @@ else:
 
 
 if st.button("Predict"):
-    proba = selected_model.predict_proba(user_input_scaled)[0][1]
+    if model_choice == "Neural Network":
+        nn.eval()
+        with torch.no_grad():
+            input_tensor = torch.tensor(user_input_scaled, dtype=torch.float32)
+            outputs = nn(input_tensor)
+            probs = torch.softmax(outputs, dim=1)
+            proba = probs[0][1].item()
+    else:
+        proba = selected_model.predict_proba(user_input_scaled)[0][1]
+
     if proba > 0.5:
         st.success("Result: Healthy (Not At Risk)")
         st.balloons()
-        st.write(f"{proba:.2f}")
     else:
         st.warning("Result: At Risk")
-        st.write(f"{proba:.2f}")
+
+    st.write(f"{proba:.2f}")
 
 st.subheader(f"📊 {model_choice} Performance")
 
